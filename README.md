@@ -55,17 +55,17 @@ The demos are recorded from corgi itself (`just demos`), each on a scratch core 
 
 ## Install
 
-corgi builds from source on macOS and Linux. Release builds, an install script and Homebrew are not
-available yet, and Windows isn't supported yet.
+On Apple Silicon macOS or Linux (x86_64, arm64), with Homebrew:
 
 ```sh
 curl -fsSL https://releases.herdr.dev/core/install.sh | sh   # hc, if you don't have it (0.1.19 or newer)
-./scripts/bootstrap.sh                                       # in a checkout of this repository
-cargo install --path crates/corgi --locked
+brew install hong-yi/tap/corgi
 corgi doctor                                                # checks that corgi reaches core
 ```
 
-See [Install](docs/user/install.md) for the requirements and for updating.
+Or download a build from [the releases](https://github.com/hong-yi/corgi/releases), or build from source
+(`./scripts/bootstrap.sh && cargo install --path crates/corgi --locked`). See [Install](docs/user/install.md) for
+each, the requirements and updating. Windows isn't supported yet.
 
 ## Quick start
 

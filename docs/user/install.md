@@ -8,11 +8,12 @@ corgi is a viewer for herdr-core. It needs `hc` on your `PATH`: corgi runs `hc c
 
 | Platform | Status |
 |---|---|
-| macOS (arm64, x86_64) | Builds from source. |
-| Linux (arm64, x86_64) | Builds from source. |
+| macOS, Apple Silicon | Homebrew, release builds, or from source. |
+| macOS, Intel | From source only: there's no release build. |
+| Linux (x86_64, arm64) | Homebrew, release builds (glibc 2.35 or newer, e.g. Ubuntu 22.04), or from source. |
 | Windows | Not supported yet. The named-pipe transport and Windows key encoding are still to do. |
 
-Release builds, an installer script and a Homebrew tap are not available yet. For now you build corgi from source with cargo.
+There's no installer script yet that also installs `hc`: install herdr-core first, as below.
 
 ## Install herdr-core
 
@@ -47,6 +48,28 @@ If core is too old, corgi says so:
 ```
 corgi: core 0.1.12 is too old; corgi needs 0.1.19 or newer (run `hc update`)
 ```
+
+## Install corgi with Homebrew
+
+```sh
+brew install hong-yi/tap/corgi
+```
+
+Update with `brew upgrade corgi`. The formula installs only corgi; its notes remind you how to install `hc`.
+
+## Install a release build
+
+Each [release](https://github.com/hong-yi/corgi/releases) has a `corgi-VERSION-TARGET.tar.gz` for Apple Silicon
+macOS (`aarch64-apple-darwin`) and Linux (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`), with a
+`.sha256` beside each. Check it, unpack it, and put `corgi` on your `PATH`:
+
+```sh
+shasum -a 256 -c corgi-0.1.0-aarch64-apple-darwin.tar.gz.sha256
+tar xzf corgi-0.1.0-aarch64-apple-darwin.tar.gz
+install corgi-0.1.0-aarch64-apple-darwin/corgi ~/.local/bin/
+```
+
+To update, download the new release and do the same.
 
 ## Build and install corgi from source
 
