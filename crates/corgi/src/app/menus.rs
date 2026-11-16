@@ -115,7 +115,7 @@ impl App {
                 .and_then(|s| s.window(win))
                 .map(|w| w.name.clone().unwrap_or_else(|| self.pane_name(&w.focus)))
                 .unwrap_or_default();
-            format!("{i}:{name}")
+            format!("{}:{name}", i + self.config.keys.preset.base_index())
         };
         let (title, sections) = match &t {
             Target::Pane { ws, win, pane } => (

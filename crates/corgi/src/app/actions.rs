@@ -417,7 +417,8 @@ impl App {
     /// tmux-style placeholders in prompts: `#P` pane, `#I` window index, `#W` window, `#S` workspace.
     pub(super) fn expand(&self, s: &str) -> String {
         let pane = self.window().map(|w| w.focus.clone()).unwrap_or_default();
-        let index = self.window_index().map(|i| i.to_string()).unwrap_or_default();
+        let base = self.config.keys.preset.base_index();
+        let index = self.window_index().map(|i| (i + base).to_string()).unwrap_or_default();
         let window = self
             .window()
             .map(|w| w.name.clone().unwrap_or_else(|| self.pane_name(&w.focus)))
@@ -688,6 +689,7 @@ impl App {
             folder: &|s| git_key(s.machine.as_deref(), &self.live_folder(s)),
             machines: &self.machines,
             host: &self.hostname,
+            base: self.config.keys.preset.base_index(),
         };
         f(&inputs)
     }

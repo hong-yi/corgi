@@ -277,6 +277,17 @@ pub enum KeyPreset {
     None,
 }
 
+impl KeyPreset {
+    /// The number the first window is shown with, so the labels match the keys that pick
+    /// windows: tmux's `0..9` start at 0, herdr's `1..9` at 1.
+    pub fn base_index(self) -> usize {
+        match self {
+            KeyPreset::Herdr => 1,
+            KeyPreset::Tmux | KeyPreset::None => 0,
+        }
+    }
+}
+
 /// One `[[keys.bind]]`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(default)]
@@ -1039,6 +1050,13 @@ mod tests {
                 .contains("blue-ish")
         );
         assert!(parse("not toml [").is_err());
+    }
+
+    #[test]
+    fn windows_are_numbered_like_the_keys_that_pick_them() {
+        // tmux: prefix 0 is window 0. herdr: prefix 1 is the first window, so it's shown as 1.
+        assert_eq!(KeyPreset::Tmux.base_index(), 0);
+        assert_eq!(KeyPreset::Herdr.base_index(), 1);
     }
 
     #[test]

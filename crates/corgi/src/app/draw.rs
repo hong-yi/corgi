@@ -497,6 +497,7 @@ impl App {
         };
 
         // Window tabs, scrolled to keep the active one in view, then a "+".
+        let base = self.config.keys.preset.base_index();
         let tabs: Vec<Tab> = s
             .windows
             .iter()
@@ -526,7 +527,7 @@ impl App {
                     )
                 });
                 Tab {
-                    label: format!(" {i}:{name}{flag}"),
+                    label: format!(" {}:{name}{flag}", i + base),
                     style,
                     dot,
                     id: w.id.clone(),

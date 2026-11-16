@@ -67,7 +67,7 @@ impl App {
                 let i = s.windows.iter().position(|w| w.id == win).unwrap_or(0);
                 if let Some(w) = s.windows.get(i) {
                     let name = w.name.clone().unwrap_or_else(|| self.pane_name(&w.focus));
-                    let mut text = format!(" · {i}:{name}");
+                    let mut text = format!(" · {}:{name}", i + self.config.keys.preset.base_index());
                     if s.windows.len() > 1 {
                         text.push_str(&format!(" {}/{}", i + 1, s.windows.len()));
                     }
