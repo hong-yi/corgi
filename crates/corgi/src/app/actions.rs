@@ -62,14 +62,31 @@ impl App {
                 self.open_usage();
                 return;
             }
-            Action::NewWorkspace { cwd } => {
+            Action::NewWorkspace { cwd, worktree } => {
                 let here = std::env::current_dir()
                     .map(|p| p.display().to_string())
                     .unwrap_or_default();
                 // `~` is home here, as tmux has it (a new workspace starts on this machine).
                 let cwd = cwd.map(|c| crate::form::expand_home(&c, &super::dialogs::home()));
-                let folder = cwd.or_else(|| self.focused_cwd()).unwrap_or(here);
-                self.new_workspace(folder);
+                if !worktree {
+                    let folder = cwd.or_else(|| self.focused_cwd()).unwrap_or(here);
+                    self.new_workspace(folder);
+                    return;
+                }
+                // The focused pane's folder is on its workspace's machine: git runs there.
+                let (folder, machine) = match (cwd, self.focused_cwd()) {
+                    (Some(c), _) => (c, None),
+                    (None, Some(f)) => (
+                        f,
+                        self.active()
+                            .and_then(|(ws, _)| self.doc.workspace(&ws).and_then(|s| s.machine.clone())),
+                    ),
+                    (None, None) => (here, None),
+                };
+                let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+                let branch = crate::worktree::new_branch(t.map_or(0, |d| d.as_nanos() as u64));
+                let line = crate::worktree::script_or_here(&folder, &branch, &self.config.worktrees.directory);
+                self.make_worktree(line, None, machine, None);
                 return;
             }
             other => other,

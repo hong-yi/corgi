@@ -545,7 +545,7 @@ impl App {
     }
 
     /// Make a git worktree (through core, on the workspace's machine); `Msg::Worktree` says how it went.
-    fn make_worktree(&self, line: String, name: Option<String>, machine: Option<String>, run: Option<Run>) {
+    pub(super) fn make_worktree(&self, line: String, name: Option<String>, machine: Option<String>, run: Option<Run>) {
         let (c, out) = (self.client.clone(), self.out.clone());
         tokio::spawn(async move {
             let params = json!({"line": line, "on": machine, "timeout": 120});

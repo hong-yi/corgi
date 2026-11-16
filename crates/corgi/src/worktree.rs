@@ -69,6 +69,16 @@ pub fn script(folder: &str, branch: &str, path: Option<&str>, dir: &str) -> Stri
     )
 }
 
+/// `script` with a branch of its own, for `new-workspace -w`; a folder outside any repository
+/// gets no worktree: the line prints the folder itself, and the workspace opens there.
+pub fn script_or_here(folder: &str, branch: &str, dir: &str) -> String {
+    format!(
+        "if git -C {f} rev-parse --git-dir >/dev/null 2>&1; then {{ {s}; }}; else cd {f} && pwd -P; fi",
+        f = quote(folder),
+        s = script(folder, branch, None, dir),
+    )
+}
+
 /// Git facts about folders, as one shell line (for another machine, through `machine.exec`):
 /// per folder a line `folder<TAB>branch<TAB>checkout<TAB>common dir`, empty where git says
 /// nothing.
@@ -230,6 +240,22 @@ mod tests {
         let out = run(&script(&root.display().to_string(), "x", None, &dir));
         assert!(!out.status.success());
         assert!(String::from_utf8_lossy(&out.stderr).contains("not a git repository"));
+
+        // `new-workspace -w`: a worktree inside a repository, the folder itself outside one.
+        let out = run(&script_or_here(
+            &repo.display().to_string(),
+            "worktree/calm-otter-0001",
+            &dir,
+        ));
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        let made = String::from_utf8(out.stdout).unwrap().trim().to_string();
+        assert!(made.ends_with("trees/my repo/worktree-calm-otter-0001"), "{made}");
+        let plain = root.join("plain");
+        std::fs::create_dir_all(&plain).unwrap();
+        let out = run(&script_or_here(&plain.display().to_string(), "worktree/x", &dir));
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        let here = String::from_utf8(out.stdout).unwrap().trim().to_string();
+        assert_eq!(std::path::Path::new(&here), plain.canonicalize().unwrap());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

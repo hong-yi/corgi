@@ -181,9 +181,17 @@ Shows each pane's number for 1 second; a digit focuses that pane.
 
 ### new-workspace
 
-`new-workspace [-c dir] [-d] [-A]` (aliases `new-session`, `new`)
+`new-workspace [-c dir] [-w] [-d] [-A]` (aliases `new-session`, `new`)
 
-A new workspace at once, with no dialog, in `dir` (`~` is home; default: the focused pane's folder, else corgi's own). `-d` and `-A` are accepted and ignored. For the dialog, `dialog new-workspace`.
+A new workspace at once, with no dialog, in `dir` (`~` is home; default: the focused pane's folder, else corgi's own), with a shell. `-w` puts it in a new git worktree of that folder's repository instead, on a new branch named with random words (`worktree/calm-otter-1a2b`), under `worktrees.directory`; git runs on the focused workspace's machine. A folder outside any repository gets a plain workspace. `-d` and `-A` are accepted and ignored. For the dialog, `dialog new-workspace`.
+
+To make `N` skip the dialog:
+
+```toml
+[[keys.bind]]
+key = "N"
+command = "new-workspace -w"
+```
 
 ### rename-workspace
 
