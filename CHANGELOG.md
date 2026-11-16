@@ -5,6 +5,10 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+### Added
+
+- The sidebar's cursor reaches the agents list: `↓` past the tree's last row (or `a`) moves into it, `Enter` goes to the agent, `m` opens its menu.
+
 ## [0.1.0] - 2026-11-17
 
 The first release: everything so far. corgi needs herdr-core 0.1.19 or newer. Builds for Apple Silicon macOS

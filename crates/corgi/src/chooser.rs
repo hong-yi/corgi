@@ -27,6 +27,9 @@ pub struct Chooser {
     pub on_new: bool,
     /// Take the whole of the area it's given (the narrow layout).
     pub full: bool,
+    /// Sidebar mode: the cursor is in the agents list, on this agent's pane (`at` is kept
+    /// for going back up to the tree).
+    pub agent: Option<Target>,
 }
 
 #[derive(Debug, PartialEq)]
