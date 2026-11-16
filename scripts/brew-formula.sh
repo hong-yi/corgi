@@ -33,17 +33,15 @@ cat <<EOF
 class Corgi < Formula
   desc "Tmux-style terminal UI for herdr-core"
   homepage "https://github.com/$repo"
-  version "$version"
+  # The Apple Silicon build by default (brew reads the version from its name); Linux overrides it
+  # below. Every OS and CPU must have a URL, even the Intel Mac that depends_on then refuses.
+  url "$(url $mac_arm)"
+  sha256 "$mac_arm_sum"
   license "MIT"
 
   on_macos do
     # Apple Silicon only: there's no Intel Mac build.
     depends_on arch: :arm64
-
-    on_arm do
-      url "$(url $mac_arm)"
-      sha256 "$mac_arm_sum"
-    end
   end
 
   on_linux do
