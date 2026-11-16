@@ -1,0 +1,52 @@
+# Checks on every push to main and every pull request: fmt, clippy, the tests (with herdr-core,
+# so the integration and end-to-end tests run), cargo-deny. Linux and macOS (Windows isn't
+# supported yet).
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      ZIG: zig
+      # Zig's build cache for Ghostty's library, kept between runs (crates/corgi-vt/build.rs).
+      CORGI_ZIG_CACHE: ${{ github.workspace }}/.zig-build-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Fetch pinned Ghostty
+        run: SKIP_ZIG=1 ./scripts/bootstrap.sh
+      - name: Install herdr-core (integration tests skip without it)
+        run: |
+          curl -fsSL https://releases.herdr.dev/core/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CORGI_ZIG_CACHE }}
+          key: zig-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/pins.env') }}-${{ github.run_id }}
+          restore-keys: zig-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/pins.env') }}-
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2

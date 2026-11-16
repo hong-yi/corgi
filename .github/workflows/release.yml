@@ -1,0 +1,154 @@
+# Release builds: corgi for macOS and Linux, on a `v*` tag (then a GitHub release with them, and the
+# Homebrew formula in hong-yi/homebrew-tap updated) or by hand (then just the builds, kept as this
+# run's artifacts, for testing). The whole flow: docs/dev/release.md.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon only: no Intel Macs (Apple stopped making them; GitHub is retiring its own).
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          # An older Ubuntu: the binary runs on distributions with an older glibc too.
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust (the version rust-toolchain.toml pins)
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: libclang (bindgen)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q libclang-dev
+
+      # The pinned Zig and Ghostty (scripts/pins.env), fetched once per pin.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .tools/zig
+            vendor/ghostty
+          key: zig-ghostty-${{ matrix.os }}-${{ hashFiles('scripts/pins.env') }}
+
+      # Zig's build cache for Ghostty's library (crates/corgi-vt/build.rs), saved after every run:
+      # the library then comes from it in seconds instead of minutes.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.zig-build-cache
+          key: zig-build-${{ matrix.target }}-${{ hashFiles('scripts/pins.env') }}-${{ github.run_id }}
+          restore-keys: zig-build-${{ matrix.target }}-${{ hashFiles('scripts/pins.env') }}-
+
+      # Rust dependencies (keyed on Cargo.toml, Cargo.lock and the toolchain).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # A tag must name the version Cargo.toml has, or the release and `corgi --version` disagree.
+      - name: The tag is the version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          want=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          [[ "${GITHUB_REF_NAME#v}" == "$want" ]] || { echo "::error::tag $GITHUB_REF_NAME but Cargo.toml has $want"; exit 1; }
+
+      - name: Zig and Ghostty
+        run: ./scripts/bootstrap.sh
+
+      - name: Build
+        env:
+          CORGI_ZIG_CACHE: ${{ github.workspace }}/.zig-build-cache
+        run: cargo build --release --locked -p corgi-tui
+
+      - name: It runs
+        run: ./target/release/corgi --version
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_TYPE" == tag ]] || version="dev-${GITHUB_SHA::7}"
+          name="corgi-${version}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp target/release/corgi README.md CHANGELOG.md "dist/$name/"
+          [[ -f LICENSE ]] && cp LICENSE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    name: release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A tag with a suffix (v0.2.0-rc.1) is a prerelease: not "latest", and brew isn't told.
+          pre=(); [[ "$GITHUB_REF_NAME" == *-* ]] && pre=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* "${pre[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "corgi ${GITHUB_REF_NAME#v}" \
+            --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md)."
+
+  # The formula in hong-yi/homebrew-tap, pointed at this release. Off until the repository variable
+  # HOMEBREW_TAP is "on": brew downloads without logging in, so it can't fetch a private repo's
+  # release files. Pushes with the deploy key in the HOMEBREW_TAP_DEPLOY_KEY secret (write access to
+  # the tap only).
+  homebrew:
+    name: homebrew
+    if: github.ref_type == 'tag' && !contains(github.ref_name, '-') && vars.HOMEBREW_TAP == 'on'
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Formula
+        run: ./scripts/brew-formula.sh "${GITHUB_REF_NAME#v}" dist "$GITHUB_REPOSITORY" > corgi.rb
+      - name: Push to the tap
+        env:
+          KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/tap && chmod 600 ~/.ssh/tap
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tap -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q --depth 1 git@github.com:hong-yi/homebrew-tap.git tap
+          mkdir -p tap/Formula && cp corgi.rb tap/Formula/corgi.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/corgi.rb
+          git diff --cached --quiet && { echo "formula unchanged"; exit 0; }
+          git commit -q -m "corgi ${GITHUB_REF_NAME#v}"
+          git push -q origin HEAD

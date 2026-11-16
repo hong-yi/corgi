@@ -1,0 +1,39 @@
+[package]
+name = "corgi-tui"
+description = "A tmux-style terminal UI for herdr-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "corgi"
+path = "src/main.rs"
+
+[dependencies]
+corgi-vt.workspace = true
+hc-proto.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+unicode-width = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_ignored = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+signal-hook = "0.3"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+

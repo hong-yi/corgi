@@ -1,0 +1,223 @@
+# corgi configuration: ~/.config/corgi/config.toml
+# Every key is optional; these are the defaults. Reload with C-b R.
+
+[keys]
+# The prefix, in tmux notation ("C-b", "C-a", "M-Space").
+prefix = "C-b"
+# The bindings to start from: "tmux", "herdr" (the old herdr TUI's) or "none".
+# C-b ? lists every key; C-b : runs any command.
+preset = "tmux"
+# How long repeatable keys (arrows, resize) keep working without the prefix.
+repeat_time = "500ms"
+# Keys to remove from the preset: "%" (after the prefix) or "root M-h".
+unbind = []
+# The key-hints dialog after the prefix: "always", "delay" (only if no key comes
+# within hint_delay), or "off".
+hints = "always"
+# Where it goes: "bottom" (across the window, above a bottom tab bar) or "center".
+hints_position = "bottom"
+hint_delay = "400ms"
+
+# Your own bindings: a key in tmux notation and a corgi command (the same as
+# at the C-b : prompt). table: "prefix" (default), "root" (no prefix), "resize",
+# or your own (enter it with "switch-client -T name"). repeat, note, group: optional.
+#
+# [[keys.bind]]
+# key = "|"
+# command = "split-window -h"
+# note = "split right"
+#
+# [[keys.bind]]
+# key = "M-h"
+# table = "root"
+# command = "select-pane -L"
+
+[ui]
+# Box corners on the sidebar, panes, tab bar and dialogs: "sharp" or "rounded".
+corners = "sharp"
+
+
+# Agent status: "dots" (● ● ● ○ ·) or "symbols" (× ✓ ◐ ○ ·).
+indicators = "dots"
+# Set the terminal window's title to "corgi · workspace:window".
+window_title = true
+# Click to focus, scroll with the wheel. Off: your terminal handles the mouse.
+mouse = true
+# Closing asks first: "auto" (workspaces always; panes and windows when an agent
+# runs in them), "always" or "never".
+confirm_close = "auto"
+# At this many columns or fewer (a phone over ssh), the narrow layout: a header
+# with the workspace, window and agents, and a "switch" button (C-b w) instead
+# of the sidebar and tab bar; only the focused pane shows. 0: never.
+narrow_width = 64
+
+[tab_bar]
+# The window list: "top" or "bottom".
+position = "bottom"
+# "plain" (one row) or "box" (a rounded border, like the sidebar's; three rows).
+style = "plain"
+# "window" (the full width, under the sidebar too) or "panes" (beside the sidebar).
+span = "window"
+# Empty rows between the tab bar and the panes (0-5).
+padding = 0
+
+[panes]
+# "box" (a rounded border around the panes, the focused pane's edges lit) or "plain".
+style = "box"
+# The tab at the top of each pane: "auto" (an agent's summary while one runs,
+# else the directory's name), "cwd", "agent" (agents only) or "off".
+title = "auto"
+# How: "breadcrumbs" (a row of its own at the top of the pane: the folder's
+# path, ~ › src › corgi, or folder › agent › what it's doing, in a box of its
+# own, with an indicator at its end: a spinner while an agent works or a command
+# runs; ● waiting for you, ● done, ● idle), "line" (the same title on the line above the
+# pane), or a pill: "rounded", "angled", "slant" (powerline glyphs: need a Nerd
+# Font) or "plain" (any font).
+title_shape = "breadcrumbs"
+# Split panes: each in its own box, like herdr (true), or sharing one-line
+# dividers, like tmux (false).
+separate = true
+# Blank cells between separate panes (0-10). 0: their boxes touch.
+padding = 0
+# Blank columns between each pane's border and its terminal, each side (0-4),
+# and blank rows (0-4).
+inset = 1
+inset_rows = 0
+
+[mode]
+# The badge at the start of the tab bar says what your keys do right now.
+# Any text you like; "" hides the badge in that state. Colours: mode_normal,
+# mode_prefix, mode_sidebar, mode_dialog in [theme.custom].
+normal = "NORMAL"
+prefix = "PREFIX"
+sidebar = "SIDEBAR"
+choose = "CHOOSE"
+rename = "RENAME"
+confirm = "CONFIRM"
+# The New Window / New Workspace dialogs (coming in M6).
+new = "NEW"
+command = "COMMAND"
+keys = "KEYS"
+menu = "MENU"
+usage = "USAGE"
+panes = "PANES"
+copy = "COPY"
+popup = "POPUP"
+resize = "RESIZE"
+
+[sidebar]
+# "show", "collapsed" (status icons only) or "hidden". Toggle with C-b b.
+mode = "show"
+# "box" (a rounded border around it) or "line" (a line between it and the panes).
+style = "box"
+# With "box": where each part's name ("Workspaces", "Agents") goes: "row" (a row
+# of its own at the top, a line under it, like the panes' breadcrumbs) or
+# "border" (in the box's top border).
+header = "row"
+# Empty columns between the sidebar and the panes (0-10).
+padding = 1
+
+# Starting width. Drag its edge, or C-b ← into it and C-b C-←/→ (M-←/→ by 5),
+# to change it; that width is then remembered for this client.
+width = 26
+# The tree: workspaces › windows › panes. Click ▾/▸ (or use C-b w) to fold.
+# Row templates. Tokens: {state} {workspace} {branch} {machine} {window} {pane}
+# {agent} {title} {label:KEY}. A window row's {window} is "index:name"; a pane
+# row's {agent} is the agent's name, or the program running.
+workspace_row = "{state} {workspace} {branch}"
+window_row = "{state} {window}"
+pane_row = "{state} {agent}"
+agent_row = "{state} {agent} {workspace}:{window}"
+# "grouped" (workspace order) or "priority" (blocked, done, working, idle).
+agent_sort = "grouped"
+# Where the agents go: "split" (the sidebar in two: the tree on top, the agents
+# in the bottom part) or "below" (straight after the tree).
+agents = "split"
+# With "split": the agents' share of the sidebar's height, in percent (20-80).
+agents_height = 50
+
+[usage]
+# Status in the tab bar's free space, placed by priority (higher first) in the
+# widest form that fits; tabs always come first. C-b u shows the details.
+enabled = true
+# Without any [[usage.segment]]: agents (90), claude (60), codex (50).
+# Each is a block in its own colours: bg / fg per segment, else the provider's.
+# Providers: agents (working / waiting / done), claude (how much of its 5-hour
+# and weekly limits is left, and tokens today; Claude Code only tells its status
+# line those limits, so put corgi in front of yours in ~/.claude/settings.json:
+#   "statusLine": {"type": "command",
+#                  "command": "corgi claude-statusline -- <your command>"}
+# tokens come from ~/.claude/projects), codex (how much of its tightest
+# rate-limit window is left, as Codex reports it, from ~/.codex/sessions),
+# command (the first line a shell line prints), clock, host, system (load).
+# Fields for format / short: claude {left} {used} {limit} {block_left}
+# {block_tokens} {tokens_today}; codex {left} {used} {window} {tokens_today}.
+# [[usage.segment]]
+# provider = "claude"
+# priority = 60
+# interval = "30s"
+# format = "{tokens_today} · {block_left}"   # from the provider's fields
+# short = "{tokens_today}"
+# bg = "#d97757"     # its block's colours; bg = "none" for plain text
+# fg = "#1e1e2e"
+# show = "left"      # claude, codex: "left" (percent of the limit left), "used"
+#                    # or "tokens" (tokens today)
+# limit = "max"      # claude, without Claude Code's own numbers (below): estimate
+#                    # of a token budget, "max" (your biggest block this week)
+#                    # or a number. Unset: tokens, no estimate.
+# [[usage.segment]]
+# provider = "command"
+# cmd = "gh pr status --json number -q '.currentBranch.number'"
+# interval = "2m"
+# timeout = "5s"
+# priority = 20
+# on = "here"        # command, host, system: "here" (this machine) or
+#                    # "workspace" (the active workspace's machine, when it's
+#                    # another one). Default: "workspace" for host and system.
+
+[paste]
+# Images for panes on another machine, which can't see this one's clipboard
+# or files: a paste with nothing in it (what your terminal sends when the
+# clipboard holds only an image) or a dropped image file is sent beside the
+# pane's terminal there, and its path there is pasted instead. "remote",
+# "always" (every pane) or "off". C-b C-v (paste-image) does it on purpose.
+images = "remote"
+# A shell line that prints the clipboard's image, instead of the system's
+# (osascript on macOS; wl-paste or xclip on Linux): e.g. "pngpaste -".
+# image_command = ""
+
+[worktrees]
+# Where the New Workspace dialog's git worktrees go:
+# <directory>/<repository>/<branch>. ~ is home on the workspace's machine.
+directory = "~/.corgi/worktrees"
+
+[notifications]
+# Notices about panes you aren't looking at.
+# Toasts inside corgi, over the panes. Click one to go there.
+toasts = true
+# Where: "top-left", "top-center", "top-right", "bottom-left", "bottom-center"
+# or "bottom-right". The newest is nearest the edge.
+position = "top-right"
+duration = "6s"
+# Also toast when an agent needs you or finishes (its status), not only when a
+# program sends a notification itself (OSC 9 / OSC 777).
+agents = true
+# Pass them on to your terminal while its window isn't focused: "auto" (by what
+# the environment says it is; the bell when it can't tell), "osc777" (Ghostty,
+# WezTerm, foot), "osc9" (iTerm2), "osc99" (kitty), "bell" or "off". Inside
+# tmux they're wrapped for it (needs `set -g allow-passthrough on`).
+host = "auto"
+
+[theme]
+# A theme, or "auto": `light` or `dark` by your terminal's background.
+# Built in: catppuccin-mocha, catppuccin-latte, tokyo-night, gruvbox-dark,
+# nord, dracula, terminal (your terminal's own colours).
+name = "auto"
+light = "catppuccin-latte"
+dark = "catppuccin-mocha"
+
+# Override single colours ("#rrggbb", or an ANSI name like "red" or "reset"):
+# fg, muted, surface, accent, accent_fg, badge, badge_fg, prefix, border,
+# border_active, working, blocked, done, idle, unknown, mode_normal,
+# mode_prefix, mode_sidebar, mode_dialog.
+[theme.custom]
