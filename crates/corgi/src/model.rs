@@ -132,10 +132,28 @@ impl Doc {
         }
     }
 
+    /// A new workspace or window id, never one the layout already uses.
     pub fn alloc(&mut self, prefix: char) -> String {
-        let id = format!("{prefix}{}", self.next);
-        self.next += 1;
-        id
+        loop {
+            let id = format!("{prefix}{}", self.next);
+            self.next += 1;
+            if !self.uses(&id) {
+                return id;
+            }
+        }
+    }
+
+    fn uses(&self, id: &str) -> bool {
+        self.workspaces
+            .iter()
+            .any(|s| s.id == id || s.windows.iter().any(|w| w.id == id))
+    }
+
+    /// This doc, read from core, replaces `old`: ids handed out from `old` stay taken, even
+    /// those whose workspace or window isn't placed yet (its terminal still starting).
+    pub fn replacing(mut self, old: &Doc) -> Doc {
+        self.next = self.next.max(old.next);
+        self
     }
 
     pub fn workspace(&self, id: &str) -> Option<&Workspace> {
@@ -358,6 +376,22 @@ mod tests {
         let w2 = d.alloc('w');
         d.add_window(&s, Window::new(w2, "t3".into()));
         d
+    }
+
+    #[test]
+    fn ids_are_never_handed_out_twice() {
+        // An id from before core's copy came back (its terminal still starting) stays taken.
+        let mut old = Doc::new();
+        let s = old.alloc('s');
+        let mut d = Doc::new().replacing(&old);
+        assert_ne!(d.alloc('s'), s);
+        // Ids the layout already uses are skipped, whatever `next` says.
+        let mut d = Doc::new();
+        d.add_workspace("s1".into(), "/".into(), None, Window::new("w2".into(), "t1".into()));
+        let used = d.clone();
+        assert_eq!(d.alloc('s'), "s2", "s1 is taken");
+        let mut d = used;
+        assert_eq!([d.alloc('w'), d.alloc('w')], ["w1", "w3"], "w2 is taken");
     }
 
     #[test]

@@ -5,6 +5,10 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+### Fixed
+
+- A workspace made just after corgi starts could get the same id as the first one, so the two shared a name in the layout and segments that follow the workspace (`on = "workspace"`) kept reading the first one's machine.
+
 ## [0.1.1] - 2026-11-18
 
 ### Added
