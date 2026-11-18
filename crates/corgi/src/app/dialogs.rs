@@ -727,7 +727,7 @@ impl App {
         Some(match action {
             Action::KillPane => (format!("pane {}", self.pane_label(&w.focus)), vec![w.focus.clone()]),
             Action::KillWindow => {
-                let i = self.window_index().unwrap_or(0);
+                let i = self.window_index().unwrap_or(0) + self.config.keys.preset.base_index();
                 let name = w.name.clone().unwrap_or_else(|| self.pane_name(&w.focus));
                 let panes: Vec<String> = w.root.panes().into_iter().cloned().collect();
                 let what = match panes.len() {

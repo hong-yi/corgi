@@ -151,6 +151,8 @@ pub struct Inputs<'a> {
     /// machines: this one (called `host`) first, then the others in core's order.
     pub machines: &'a [crate::machines::Machine],
     pub host: &'a str,
+    /// The number the first window is shown with (`KeyPreset::base_index`).
+    pub base: usize,
 }
 
 /// The workspaces in the order the tree lists them: as they are, except that one in a worktree
@@ -233,7 +235,11 @@ pub fn agents(i: &Inputs) -> Vec<Row> {
                     continue;
                 }
                 let label = label.get_or_insert_with(|| (i.label)(s)).clone();
-                let window = format!("{wi}:{}", w.name.clone().unwrap_or_else(|| (i.name)(&w.focus)));
+                let window = format!(
+                    "{}:{}",
+                    wi + i.base,
+                    w.name.clone().unwrap_or_else(|| (i.name)(&w.focus))
+                );
                 out.push(pane_row(i, s, w, &label, &window, p));
             }
         }
@@ -323,7 +329,11 @@ fn workspace_rows(
     let mut ws_terms = Vec::new();
     let mut windows = Vec::new();
     for (wi, w) in s.windows.iter().enumerate() {
-        let window = format!("{wi}:{}", w.name.clone().unwrap_or_else(|| (i.name)(&w.focus)));
+        let window = format!(
+            "{}:{}",
+            wi + i.base,
+            w.name.clone().unwrap_or_else(|| (i.name)(&w.focus))
+        );
         let win_current = ws_current && w.id == i.current.1;
         let mut panes = Vec::new();
         let mut win_terms = Vec::new();
@@ -495,6 +505,7 @@ mod tests {
             folder: &|s| s.folder.clone(),
             machines: &[],
             host: "mac",
+            base: 0,
         };
         rows(&i, fold, filter)
     }
@@ -537,6 +548,7 @@ mod tests {
             folder: &|s| s.folder.clone(),
             machines: &[],
             host: "mac",
+            base: 0,
         };
         let mut f = Fold::default();
         f.toggle(&Target::Workspace("s1".into()));
@@ -577,6 +589,7 @@ mod tests {
             folder: &|s| s.folder.clone(),
             machines: &[],
             host: "mac",
+            base: 0,
         };
         assert_eq!(texts(&rows(&i, &f, "")), before, "but not in the tree");
         let names = ["t12".to_string(), "t3".to_string(), "m/t1".to_string(), "x".to_string()];
@@ -671,6 +684,7 @@ mod tests {
             folder: &|s| s.folder.clone(),
             machines: &machines,
             host: "mac",
+            base: 0,
         };
         let mut f = Fold::default();
         f.toggle(&Target::Workspace("s1".into()));
@@ -742,6 +756,7 @@ mod tests {
             folder: &folder,
             machines: &[],
             host: "mac",
+            base: 0,
         };
         let started = std::time::Instant::now();
         let r = rows(&i, &Fold::default(), "");
