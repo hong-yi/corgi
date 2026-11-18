@@ -5,10 +5,16 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-18
+
 ### Added
 
 - The sidebar's cursor reaches the agents list: `↓` past the tree's last row (or `a`) moves into it, `Enter` goes to the agent, `m` opens its menu.
 - `new-workspace -w`: a workspace in a new git worktree of the focused pane's folder, on a branch named with random words, with no dialog. Bind it to `N` to skip the New Workspace dialog.
+
+### Fixed
+
+- Under the herdr preset, windows are numbered from 1, so `prefix 1`–`9` pick the window labelled with that number (tab bar, tree, menus, status, `#I`). `select-window -t` stays 0-based, so existing configs keep working.
 
 ## [0.1.0] - 2026-11-17
 
