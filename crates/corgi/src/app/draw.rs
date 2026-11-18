@@ -7,7 +7,7 @@ use crate::config::{Hints, Position, SidebarMode};
 use crate::keyhints::KeyHints;
 use crate::model::Window;
 use crate::pane::{Pane, State};
-use crate::sidebar::{self, AgentRow};
+use crate::sidebar;
 use crate::status;
 use crate::theme::Theme;
 use crate::ui;
@@ -409,22 +409,7 @@ impl App {
 
     fn draw_sidebar(&mut self, f: &mut ratatui::Frame, area: Rect) {
         let tree = self.tree_rows("");
-        // Agents: every pane that reports a status, in the tree's order (folded or not).
-        let agents: Vec<AgentRow> = self
-            .tree_agents()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(order, row)| match &row.target {
-                Some(crate::tree::Target::Pane { ws, win, pane }) => Some(AgentRow {
-                    ws: ws.clone(),
-                    win: win.clone(),
-                    pane: pane.clone(),
-                    order,
-                    row,
-                }),
-                _ => None,
-            })
-            .collect();
+        let agents = self.sidebar_agents();
         let view = sidebar::View {
             tree: &tree,
             agents: &agents,
@@ -433,7 +418,12 @@ impl App {
             indicators: self.config.ui.indicators,
             collapsed: self.sidebar_mode == SidebarMode::Collapsed,
             boxed: self.config.sidebar.style == crate::config::SidebarStyle::Box,
-            cursor: self.sidebar_focus.as_ref().and_then(|c| c.at.clone()),
+            cursor: self
+                .sidebar_focus
+                .as_ref()
+                .filter(|c| c.agent.is_none())
+                .and_then(|c| c.at.clone()),
+            agent_cursor: self.sidebar_focus.as_ref().and_then(|c| c.agent.clone()),
             focused: self.sidebar_focus.is_some() || self.dragging,
         };
         self.hits.sidebar = view.render(area, f.buffer_mut());

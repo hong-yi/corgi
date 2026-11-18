@@ -35,8 +35,9 @@ pane:
 
 | Key | Does |
 |---|---|
-| `↑` `↓`, `k` `j` | Move the cursor. |
-| `Home` / `End` | First / last row. |
+| `↑` `↓`, `k` `j` | Move the cursor. `↓` past the tree's last row goes into the agents list; `↑` on the first agent comes back. |
+| `a` | Into the agents list, or back to the tree where the cursor was. |
+| `Home` / `End` | First / last row of the list the cursor is in. |
 | `→` `l` / `←` `h` | Open / close the row. `←` on a closed or leaf row goes to its parent. |
 | `Tab` | Open or close the row. |
 | `Enter` | Go to that workspace, window or pane. The keyboard goes back to the panes. |
@@ -45,8 +46,8 @@ pane:
 
 The sidebar doesn't filter: typed letters do nothing here. Use the chooser to filter. The prefix
 still works. Prefix keys other than moves and resizes hand the keyboard back to the panes and then
-run as usual. The agents list is reached with the mouse or the agent keys below, not with the
-sidebar cursor.
+run as usual. In the agents list, `Enter` goes to that agent's pane and `m` opens its menu; the
+list scrolls to keep the cursor in sight.
 
 ### Resizing the sidebar
 

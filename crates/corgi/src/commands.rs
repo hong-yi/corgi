@@ -41,6 +41,8 @@ pub enum Action {
     Resize(Side, u16),
     NewWorkspace {
         cwd: Option<String>,
+        /// `-w`: in a new git worktree of that folder, on a branch named with random words.
+        worktree: bool,
     },
     RenameWorkspace(Option<String>),
     KillWorkspace,
@@ -463,9 +465,13 @@ pub fn parse(line: &str) -> Result<Action, String> {
                 .ok_or(format!("select-layout: no layout {name:?}"))?;
             Action::SelectLayout(p)
         }
-        "new-workspace" | "new-session" | "new" => Action::NewWorkspace {
-            cwd: a("c", "dA")?.value('c'),
-        },
+        "new-workspace" | "new-session" | "new" => {
+            let a = a("c", "dAw")?;
+            Action::NewWorkspace {
+                cwd: a.value('c'),
+                worktree: a.has('w'),
+            }
+        }
         "rename-workspace" | "rename-session" | "rename" => Action::RenameWorkspace(a("", "")?.rest_line()),
         "rename-pane" => Action::RenamePane(a("", "")?.rest_line()),
         "kill-workspace" | "kill-session" => Action::KillWorkspace,
@@ -757,6 +763,20 @@ mod tests {
             }
         );
         assert_eq!(parse("select-agent 3").unwrap(), Action::SelectAgent(3));
+        assert_eq!(
+            parse("new-workspace -w").unwrap(),
+            Action::NewWorkspace {
+                cwd: None,
+                worktree: true
+            }
+        );
+        assert_eq!(
+            parse("new -c ~/src").unwrap(),
+            Action::NewWorkspace {
+                cwd: Some("~/src".into()),
+                worktree: false
+            }
+        );
         assert!(parse("select-agent 0").is_err());
         assert_eq!(
             parse("next-agent -b").unwrap(),

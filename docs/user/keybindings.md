@@ -311,14 +311,17 @@ There is no `resize` table in this preset until you bind one.
 
 | Key | Does |
 |---|---|
-| `↑` `↓`, `k` `j`, `C-p` `C-n`, `C-k` `C-j` | Move. |
-| `Home` `End` | First, last row. |
+| `↑` `↓`, `k` `j`, `C-p` `C-n`, `C-k` `C-j` | Move. `↓` on the tree's last row goes into the agents list; `↑` on its first agent comes back. |
+| `a` | Into the agents list, or back to the tree. |
+| `Home` `End` | First, last row (of the list the cursor is in). |
 | `→` `l` | Unfold. |
 | `←` `h` | Fold; on a folded row or a leaf, go to its parent row. |
 | `Tab` | Fold or unfold. |
 | `Enter` | Go there; the keyboard goes back to the panes. |
 | `m` | The action menu for the row. |
 | `Esc`, `C-c`, `C-g` | Back to the panes. |
+
+In the agents list, `Enter` goes to the agent's pane and `m` opens that pane's menu. Folding keys do nothing there.
 
 Other characters do nothing (the sidebar doesn't filter). The `root` table still applies, and the prefix works:
 

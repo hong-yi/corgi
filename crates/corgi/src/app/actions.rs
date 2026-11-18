@@ -62,14 +62,31 @@ impl App {
                 self.open_usage();
                 return;
             }
-            Action::NewWorkspace { cwd } => {
+            Action::NewWorkspace { cwd, worktree } => {
                 let here = std::env::current_dir()
                     .map(|p| p.display().to_string())
                     .unwrap_or_default();
                 // `~` is home here, as tmux has it (a new workspace starts on this machine).
                 let cwd = cwd.map(|c| crate::form::expand_home(&c, &super::dialogs::home()));
-                let folder = cwd.or_else(|| self.focused_cwd()).unwrap_or(here);
-                self.new_workspace(folder);
+                if !worktree {
+                    let folder = cwd.or_else(|| self.focused_cwd()).unwrap_or(here);
+                    self.new_workspace(folder);
+                    return;
+                }
+                // The focused pane's folder is on its workspace's machine: git runs there.
+                let (folder, machine) = match (cwd, self.focused_cwd()) {
+                    (Some(c), _) => (c, None),
+                    (None, Some(f)) => (
+                        f,
+                        self.active()
+                            .and_then(|(ws, _)| self.doc.workspace(&ws).and_then(|s| s.machine.clone())),
+                    ),
+                    (None, None) => (here, None),
+                };
+                let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+                let branch = crate::worktree::new_branch(t.map_or(0, |d| d.as_nanos() as u64));
+                let line = crate::worktree::script_or_here(&folder, &branch, &self.config.worktrees.directory);
+                self.make_worktree(line, None, machine, None);
                 return;
             }
             other => other,
@@ -559,14 +576,38 @@ impl App {
         let Some(mut ch) = self.sidebar_focus.take() else {
             return;
         };
-        // m: the action menu for the row under the cursor.
-        if k.code == crossterm::event::KeyCode::Char('m') && k.modifiers.is_empty() {
-            let at = ch.at.clone();
+        use crossterm::event::{KeyCode, KeyModifiers};
+        // m: the action menu for the row (or agent) under the cursor.
+        if k.code == KeyCode::Char('m') && k.modifiers.is_empty() {
+            let at = ch.agent.clone().or_else(|| ch.at.clone());
             self.sidebar_focus = Some(ch);
             self.open_menu(at);
             return;
         }
+        let agents: Vec<_> = self.sidebar_agents().iter().map(|a| a.target()).collect();
         let rows = self.tree_rows("");
+        let plain = !k.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+        if ch.agent.is_some() {
+            match agent_key(&mut ch, &k, &agents, &rows) {
+                crate::chooser::Outcome::Close => self.sync(),
+                crate::chooser::Outcome::Go(t) => self.go(t),
+                _ => {
+                    if ch.agent.is_none() {
+                        ch.settle(&rows);
+                    }
+                    self.sidebar_focus = Some(ch);
+                }
+            }
+            return;
+        }
+        // Into the agents list: `a`, or down from the tree's last row.
+        let last = rows.iter().position(|r| r.target == ch.at).unwrap_or(0) + 1 >= rows.len();
+        let down = plain && matches!(k.code, KeyCode::Down | KeyCode::Char('j'));
+        if !agents.is_empty() && ((plain && k.code == KeyCode::Char('a')) || (down && last)) {
+            ch.agent = agents.first().cloned();
+            self.sidebar_focus = Some(ch);
+            return;
+        }
         let before = self.fold.clone();
         match ch.key(&k, &rows, &mut self.fold) {
             crate::chooser::Outcome::Close => self.sync(),
@@ -672,6 +713,28 @@ impl App {
     /// Every agent's row, in the tree's order (the sidebar's bottom part).
     pub(super) fn tree_agents(&self) -> Vec<crate::tree::Row> {
         self.with_tree(crate::tree::agents)
+    }
+
+    /// The sidebar's agents list: every pane that reports a status, in the order the sidebar
+    /// shows them (`sidebar.agent_sort`), folded or not.
+    pub(super) fn sidebar_agents(&self) -> Vec<crate::sidebar::AgentRow> {
+        let mut agents: Vec<_> = self
+            .tree_agents()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(order, row)| match &row.target {
+                Some(crate::tree::Target::Pane { ws, win, pane }) => Some(crate::sidebar::AgentRow {
+                    ws: ws.clone(),
+                    win: win.clone(),
+                    pane: pane.clone(),
+                    order,
+                    row,
+                }),
+                _ => None,
+            })
+            .collect();
+        crate::sidebar::sort_agents(&mut agents, self.config.sidebar.agent_sort);
+        agents
     }
 
     fn with_tree<T>(&self, f: impl FnOnce(&crate::tree::Inputs) -> T) -> T {
@@ -925,5 +988,121 @@ impl App {
             }
             Err(e) => self.notify(format!("config not reloaded: {e}")),
         }
+    }
+}
+
+/// A key while the sidebar's cursor is in the agents list (`agents`: their panes, in the
+/// sidebar's order). `Stay` with `ch.agent` cleared means the cursor went back up to the tree,
+/// onto its last row (`rows`).
+fn agent_key(
+    ch: &mut crate::chooser::Chooser,
+    k: &crossterm::event::KeyEvent,
+    agents: &[crate::tree::Target],
+    rows: &[crate::tree::Row],
+) -> crate::chooser::Outcome {
+    use crate::chooser::Outcome;
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let Some(at) = ch.agent.clone() else {
+        return Outcome::Stay;
+    };
+    // Its agent went away: the first one, or the tree when there are none.
+    let Some(i) = agents.iter().position(|a| *a == at) else {
+        ch.agent = agents.first().cloned();
+        return Outcome::Stay;
+    };
+    let plain = !k.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+    let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
+    let up = matches!(k.code, KeyCode::Up)
+        || (plain && k.code == KeyCode::Char('k'))
+        || (ctrl && matches!(k.code, KeyCode::Char('p')));
+    let down = matches!(k.code, KeyCode::Down)
+        || (plain && k.code == KeyCode::Char('j'))
+        || (ctrl && matches!(k.code, KeyCode::Char('n')));
+    let to_tree = |ch: &mut crate::chooser::Chooser, row: Option<&crate::tree::Row>| {
+        ch.agent = None;
+        if let Some(r) = row {
+            ch.at = r.target.clone();
+        }
+    };
+    match k.code {
+        _ if up && i == 0 => to_tree(ch, rows.last()),
+        _ if up => ch.agent = Some(agents[i - 1].clone()),
+        _ if down => ch.agent = Some(agents[(i + 1).min(agents.len() - 1)].clone()),
+        KeyCode::Home => ch.agent = agents.first().cloned(),
+        KeyCode::End => ch.agent = agents.last().cloned(),
+        // Back to the tree, where the cursor was.
+        KeyCode::Char('a') if plain => ch.agent = None,
+        KeyCode::Enter => return Outcome::Go(at),
+        KeyCode::Esc => return Outcome::Close,
+        KeyCode::Char('c' | 'g') if ctrl => return Outcome::Close,
+        _ => {}
+    }
+    Outcome::Stay
+}
+
+#[cfg(test)]
+mod tests {
+    use super::agent_key;
+    use crate::chooser::{Chooser, Outcome};
+    use crate::tree::{Row, Target};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn pane(p: &str) -> Target {
+        Target::Pane {
+            ws: "s1".into(),
+            win: "w1".into(),
+            pane: p.into(),
+        }
+    }
+
+    fn key(c: KeyCode) -> KeyEvent {
+        KeyEvent::new(c, KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn the_agents_list_has_its_own_cursor() {
+        let agents = [pane("t1"), pane("t2"), pane("t3")];
+        let rows = [
+            Row {
+                target: Some(Target::Workspace("s1".into())),
+                ..Default::default()
+            },
+            Row {
+                target: Some(Target::Workspace("s2".into())),
+                ..Default::default()
+            },
+        ];
+        let mut ch = Chooser::sidebar(Some(Target::Workspace("s1".into())));
+        ch.agent = Some(pane("t1"));
+        agent_key(&mut ch, &key(KeyCode::Char('j')), &agents, &rows);
+        agent_key(&mut ch, &key(KeyCode::Down), &agents, &rows);
+        agent_key(&mut ch, &key(KeyCode::Down), &agents, &rows);
+        assert_eq!(ch.agent, Some(pane("t3")), "stops at the last");
+        agent_key(&mut ch, &key(KeyCode::Home), &agents, &rows);
+        assert_eq!(ch.agent, Some(pane("t1")));
+        assert_eq!(agent_key(&mut ch, &key(KeyCode::End), &agents, &rows), Outcome::Stay);
+        assert_eq!(
+            agent_key(&mut ch, &key(KeyCode::Enter), &agents, &rows),
+            Outcome::Go(pane("t3"))
+        );
+        // Up from the first agent: the tree's last row.
+        ch.agent = Some(pane("t1"));
+        agent_key(&mut ch, &key(KeyCode::Char('k')), &agents, &rows);
+        assert_eq!(ch.agent, None);
+        assert_eq!(ch.at, Some(Target::Workspace("s2".into())));
+        // `a` goes back to where the tree's cursor was.
+        ch.at = Some(Target::Workspace("s1".into()));
+        ch.agent = Some(pane("t2"));
+        agent_key(&mut ch, &key(KeyCode::Char('a')), &agents, &rows);
+        assert_eq!(
+            (ch.agent.clone(), ch.at.clone()),
+            (None, Some(Target::Workspace("s1".into())))
+        );
+        // Its agent went away: onto the first that's left.
+        ch.agent = Some(pane("t9"));
+        agent_key(&mut ch, &key(KeyCode::Down), &agents, &rows);
+        assert_eq!(ch.agent, Some(pane("t1")));
+        ch.agent = Some(pane("t1"));
+        assert_eq!(agent_key(&mut ch, &key(KeyCode::Esc), &agents, &rows), Outcome::Close);
     }
 }

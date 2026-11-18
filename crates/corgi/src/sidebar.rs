@@ -23,6 +23,25 @@ pub struct AgentRow {
     pub order: usize,
 }
 
+impl AgentRow {
+    /// Its pane: where clicking or Enter on it goes.
+    pub fn target(&self) -> Target {
+        Target::Pane {
+            ws: self.ws.clone(),
+            win: self.win.clone(),
+            pane: self.pane.clone(),
+        }
+    }
+}
+
+/// The agents in the order the sidebar lists them (`sidebar.agent_sort`).
+pub fn sort_agents(agents: &mut [AgentRow], sort: AgentSort) {
+    match sort {
+        AgentSort::Grouped => agents.sort_by_key(|a| a.order),
+        AgentSort::Priority => agents.sort_by_key(|a| (std::cmp::Reverse(a.row.state), a.order)),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Hit {
     /// Show it.
@@ -162,6 +181,8 @@ pub struct View<'a> {
     pub boxed: bool,
     /// The keyboard cursor's row, when the sidebar has focus.
     pub cursor: Option<Target>,
+    /// The keyboard cursor's agent (its pane), when it's in the agents list instead.
+    pub agent_cursor: Option<Target>,
     /// Has the keyboard (or is being resized): its border shows it.
     pub focused: bool,
 }
@@ -325,11 +346,8 @@ impl View<'_> {
             put(buf, tree_area, &mut y, spans, style, row.target.clone(), fold);
         }
 
-        let mut agents: Vec<&AgentRow> = self.agents.iter().collect();
-        match self.config.agent_sort {
-            AgentSort::Grouped => agents.sort_by_key(|a| a.order),
-            AgentSort::Priority => agents.sort_by_key(|a| (std::cmp::Reverse(a.row.state), a.order)),
-        }
+        let mut agents: Vec<AgentRow> = self.agents.to_vec();
+        sort_agents(&mut agents, self.config.agent_sort);
         let within = match agent_area {
             Some(a) => {
                 y = a.y;
@@ -388,11 +406,15 @@ impl View<'_> {
                 tree_area
             }
         };
-        // More than fit: the last row says how many more.
+        // More than fit: the last row says how many more, scrolled to keep the cursor in sight.
         let room = within.bottom().saturating_sub(y) as usize;
-        let more = agents.len().saturating_sub(room);
-        let shown = if more > 0 { room.saturating_sub(1) } else { agents.len() };
-        for a in &agents[..shown] {
+        let at = self
+            .agent_cursor
+            .as_ref()
+            .and_then(|c| agents.iter().position(|a| a.target() == *c));
+        let (start, shown) = agent_window(agents.len(), room, at);
+        let more = agents.len() - start - shown;
+        for a in &agents[start..start + shown] {
             let spans = if self.collapsed {
                 vec![glyph(a.row.state, self.indicators, t).unwrap_or(Span::raw("·"))]
             } else {
@@ -407,23 +429,39 @@ impl View<'_> {
                 };
                 expand(&self.config.agent_row, glyph(r.state, self.indicators, t), &get)
             };
-            let target = Target::Pane {
-                ws: a.ws.clone(),
-                win: a.win.clone(),
-                pane: a.pane.clone(),
+            let target = a.target();
+            let style = if self.agent_cursor.as_ref() == Some(&target) {
+                Style::new().bg(t.prefix).fg(t.accent_fg).add_modifier(Modifier::BOLD)
+            } else {
+                surface
             };
-            put(buf, within, &mut y, spans, surface, Some(target), None);
+            put(buf, within, &mut y, spans, style, Some(target), None);
         }
         if more > 0 && room > 0 {
-            let n = agents.len() - shown;
             let text = if self.collapsed {
                 "…".to_string()
             } else {
-                format!("+{n} more")
+                format!("+{more} more")
             };
             put(buf, within, &mut y, vec![Span::raw(text)], muted, None, None);
         }
         hits
+    }
+}
+
+/// Which of `n` agents to show in `room` rows, keeping `at` (the cursor) in sight: `(start, count)`.
+/// When some don't fit, the last row is left for "+N more" (those below).
+fn agent_window(n: usize, room: usize, at: Option<usize>) -> (usize, usize) {
+    if n <= room {
+        return (0, n);
+    }
+    let fit = room.saturating_sub(1);
+    let start = at.map_or(0, |i| (i + 1).saturating_sub(fit));
+    if start + fit >= n {
+        // Scrolled to the end: nothing below, so the "more" row isn't needed.
+        (n - room, room)
+    } else {
+        (start, fit)
     }
 }
 
@@ -549,6 +587,7 @@ mod tests {
             collapsed: false,
             boxed: false,
             cursor: None,
+            agent_cursor: None,
             focused: false,
         };
         let hits = view.render(area, &mut buf);
@@ -580,6 +619,7 @@ mod tests {
             collapsed: true,
             boxed: false,
             cursor: None,
+            agent_cursor: None,
             focused: false,
         };
         view.render(Rect::new(0, 0, 3, 10), &mut buf);
@@ -620,6 +660,7 @@ mod tests {
             collapsed: false,
             boxed: true,
             cursor: None,
+            agent_cursor: None,
             focused: false,
         }
         .render(area, &mut buf);
@@ -678,6 +719,7 @@ mod tests {
             collapsed: false,
             boxed,
             cursor: None,
+            agent_cursor: None,
             focused: false,
         }
         .render(area, &mut buf);
@@ -724,6 +766,19 @@ mod tests {
         // Bottom box: 6 rows, 4 inside: 3 agents and a count of the rest.
         assert!(s[9].contains("a2"), "{s:#?}");
         assert_eq!(s[10], "│ +6 more              │");
+    }
+
+    #[test]
+    fn the_agents_list_scrolls_to_keep_the_cursor() {
+        // All fit.
+        assert_eq!(agent_window(3, 5, Some(2)), (0, 3));
+        // 9 in 4 rows: 3 and "+N more"; the cursor past them scrolls.
+        assert_eq!(agent_window(9, 4, None), (0, 3));
+        assert_eq!(agent_window(9, 4, Some(2)), (0, 3));
+        assert_eq!(agent_window(9, 4, Some(4)), (2, 3));
+        // At the end: nothing below, so all 4 rows are agents.
+        assert_eq!(agent_window(9, 4, Some(8)), (5, 4));
+        assert_eq!(agent_window(9, 0, Some(8)), (9, 0));
     }
 
     #[test]
@@ -776,6 +831,7 @@ mod tests {
             collapsed: false,
             boxed: true,
             cursor: None,
+            agent_cursor: None,
             focused: false,
         }
         .render(area, &mut buf);
