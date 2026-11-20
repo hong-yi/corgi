@@ -7,7 +7,7 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ### Changed
 
-- A workspace in a linked git worktree is named after its repository too, as `corgi/feat-login` instead of `feat-login`. A name you give it still wins.
+- A workspace in a linked git worktree is named after its repository too, as `corgi/feat-login` instead of `feat-login`, in the status line, menus and window title. Under its repository's row in the sidebar and the tree chooser it still shows as `feat-login`. A name you give it still wins.
 
 ## [0.1.2] - 2026-11-20
 

@@ -1160,18 +1160,21 @@ impl App {
     }
 
     /// A workspace's name: yours, if you gave it one; else the git checkout it's in now, else the
-    /// folder (`~/src/corgi/crates` → `corgi`).
+    /// folder (`~/src/corgi/crates` → `corgi`). A linked worktree is named after its repository
+    /// too: `corgi/feat-login`.
     pub(super) fn ws_label(&self, s: &crate::model::Workspace) -> String {
         if let Some(n) = &s.name {
             return n.clone();
         }
         let folder = self.live_folder(s);
         let key = git_key(s.machine.as_deref(), &folder);
-        let named = self.toplevels.get(&key).map(String::as_str).unwrap_or(&folder);
-        std::path::Path::new(named.trim_end_matches('/'))
-            .file_name()
-            .map(|f| f.to_string_lossy().into_owned())
-            .unwrap_or_else(|| s.label())
+        let top = self.toplevels.get(&key).map(String::as_str);
+        // The repository's own checkout, keyed by machine as `repos` holds it.
+        let main = self.repos.get(&key).map(String::as_str);
+        let linked = top
+            .zip(main)
+            .is_some_and(|(t, m)| git_key(s.machine.as_deref(), t) != m);
+        auto_name(top.unwrap_or(&folder), linked.then_some(main).flatten()).unwrap_or_else(|| s.label())
     }
 
     /// The folder new terminals in the focused pane's place should start in.
@@ -1444,9 +1447,47 @@ fn git_key(machine: Option<&str>, folder: &str) -> String {
     }
 }
 
+/// The automatic name for a checkout (or plain folder): its last part, after its repository's
+/// (`main`, a path or a machine-keyed one) when it is a linked worktree of it.
+fn auto_name(checkout: &str, main: Option<&str>) -> Option<String> {
+    let last = |p: &str| {
+        let p = p.rsplit(KEY_SEP).next().unwrap_or(p).trim_end_matches('/');
+        std::path::Path::new(p)
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+    };
+    let name = last(checkout)?;
+    Some(match main.and_then(last) {
+        Some(repo) => format!("{repo}/{name}"),
+        None => name,
+    })
+}
+
 /// This machine's name (up to the first dot), for its group in the tree.
 fn hostname() -> String {
     let name = crate::usage_sources::hostname();
     let short = name.split('.').next().unwrap_or("").trim().to_string();
     if short.is_empty() { "this machine".into() } else { short }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_checkout_or_folder_is_named_after_its_last_part() {
+        assert_eq!(auto_name("/src/corgi", None).as_deref(), Some("corgi"));
+        assert_eq!(auto_name("/src/corgi/", None).as_deref(), Some("corgi"));
+        assert_eq!(auto_name("/", None), None);
+    }
+
+    #[test]
+    fn a_linked_worktree_is_named_after_its_repository_too() {
+        let n = auto_name("/home/me/.corgi/worktrees/corgi/feat-login", Some("/src/corgi"));
+        assert_eq!(n.as_deref(), Some("corgi/feat-login"));
+        // On another machine, `repos` holds the repository keyed by the machine's name.
+        let main = git_key(Some("box"), "/src/corgi");
+        let n = auto_name("/trees/corgi/feat-login", Some(&main));
+        assert_eq!(n.as_deref(), Some("corgi/feat-login"));
+    }
 }

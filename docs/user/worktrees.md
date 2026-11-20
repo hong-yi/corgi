@@ -87,7 +87,7 @@ For this to happen:
 - the parent workspace's folder must be the repository's main checkout itself (not a subfolder of it)
 - both workspaces must be on the same machine
 
-A workspace without a name of its own is named after the git checkout its first pane is in, and shows that checkout's branch. corgi reads these git facts every 10 seconds, and at once when a workspace's folder changes. For workspaces on another machine, it reads them there, while that machine's line is up.
+A workspace without a name of its own is named after the git checkout its first pane is in, and shows that checkout's branch. A worktree's name starts with its repository's: `app/feat-login`. Under its repository's row in the tree, it leaves that part out, as above; a filter still matches the whole name. corgi reads these git facts every 10 seconds, and at once when a workspace's folder changes. For workspaces on another machine, it reads them there, while that machine's line is up.
 
 ## Related
 
