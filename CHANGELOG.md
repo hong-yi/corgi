@@ -5,6 +5,12 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+### Changed
+
+- A workspace in a linked git worktree is named after its repository too, as `corgi/feat-login` instead of `feat-login`. A name you give it still wins.
+
+## [0.1.2] - 2026-11-20
+
 ### Added
 
 - The sidebar tree and the tree chooser (`C-b w`) draw guide lines (`├─`, `└─`, `│`) showing which windows and panes belong to which workspace.
@@ -12,7 +18,6 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 ### Fixed
 
 - The sidebar highlights the focused pane, not its workspace. When the pane's window or workspace is folded, the highlight goes on that row instead, and the rows above it stay bold.
-
 - A workspace made just after corgi starts could get the same id as the first one, so the two shared a name in the layout and segments that follow the workspace (`on = "workspace"`) kept reading the first one's machine.
 
 ## [0.1.1] - 2026-11-18
@@ -167,5 +172,7 @@ and Linux (x86_64, arm64) are attached to the release.
 
 - corgi is MIT-licensed; `crates/corgi-vt/build.rs`, derived from herdr-core, stays Apache-2.0.
 
-[Unreleased]: https://github.com/hong-yi/corgi/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hong-yi/corgi/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/hong-yi/corgi/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/hong-yi/corgi/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hong-yi/corgi/releases/tag/v0.1.0

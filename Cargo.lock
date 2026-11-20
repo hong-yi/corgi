@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "corgi-tui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "corgi-vt"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bindgen",
 ]
@@ -648,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "hc-proto"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "corgi-vt",
  "serde",
