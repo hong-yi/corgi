@@ -5,6 +5,8 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-20
+
 ### Changed
 
 - A workspace in a linked git worktree is named after its repository too, as `corgi/feat-login` instead of `feat-login`, in the status line, menus and window title. Under its repository's row in the sidebar and the tree chooser it still shows as `feat-login`. A name you give it still wins.
@@ -172,7 +174,8 @@ and Linux (x86_64, arm64) are attached to the release.
 
 - corgi is MIT-licensed; `crates/corgi-vt/build.rs`, derived from herdr-core, stays Apache-2.0.
 
-[Unreleased]: https://github.com/hong-yi/corgi/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/hong-yi/corgi/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/hong-yi/corgi/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/hong-yi/corgi/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hong-yi/corgi/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hong-yi/corgi/releases/tag/v0.1.0
