@@ -5,7 +5,13 @@ see [docs/dev/release.md](docs/dev/release.md) for how entries are written.
 
 ## [Unreleased]
 
+### Added
+
+- The sidebar tree and the tree chooser (`C-b w`) draw guide lines (`├─`, `└─`, `│`) showing which windows and panes belong to which workspace.
+
 ### Fixed
+
+- The sidebar highlights the focused pane, not its workspace. When the pane's window or workspace is folded, the highlight goes on that row instead, and the rows above it stay bold.
 
 - A workspace made just after corgi starts could get the same id as the first one, so the two shared a name in the layout and segments that follow the workspace (`on = "workspace"`) kept reading the first one's machine.
 

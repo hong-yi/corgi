@@ -93,22 +93,64 @@ pub fn glyph(state: Option<Agent>, indicators: Indicators, t: &Theme) -> Option<
     state.map(|a| Span::styled(status::glyph(a, indicators), Style::new().fg(status::color(a, t))))
 }
 
-/// A tree row as text: indent, fold arrow, then its template. Returns the spans and the
-/// column (relative) of the fold arrow, if it has one.
-pub fn tree_line(row: &Row, cfg: &Sidebar, t: &Theme, ind: Indicators) -> (Vec<Span<'static>>, Option<u16>) {
-    let indent = "  ".repeat(row.depth as usize);
-    let arrow = if !row.foldable {
+/// The guide lines in front of each row, showing what's nested in what: `├─` for a row with
+/// more siblings below it, `└─` for the last, `│ ` where an ancestor's siblings continue.
+/// Two columns a level, like plain indent; top-level rows have none.
+pub fn guides(depths: &[u8]) -> Vec<String> {
+    // Backwards: is there a sibling further down (a row at the same depth before a shallower one)?
+    let mut last = vec![true; depths.len()];
+    let mut later: Vec<bool> = Vec::new();
+    for (k, &d) in depths.iter().enumerate().rev() {
+        let d = d as usize;
+        later.resize(d + 1, false);
+        last[k] = !later[d];
+        later[d] = true;
+    }
+    // Forwards: which ancestors' lines run past this row.
+    let mut open: Vec<bool> = Vec::new();
+    depths
+        .iter()
+        .zip(&last)
+        .map(|(&d, &last)| {
+            let d = d as usize;
+            open.resize(d + 1, false);
+            let mut g = String::new();
+            for &o in open.iter().take(d).skip(1) {
+                g.push_str(if o { "│ " } else { "  " });
+            }
+            if d > 0 {
+                g.push_str(if last { "└─" } else { "├─" });
+            }
+            open[d] = !last;
+            g
+        })
+        .collect()
+}
+
+/// A tree row as text: its guide (from [`guides`]), fold arrow, then its template. Returns the
+/// spans and the column (relative) of the fold arrow, if it has one.
+pub fn tree_line(
+    row: &Row,
+    guide: &str,
+    cfg: &Sidebar,
+    t: &Theme,
+    ind: Indicators,
+) -> (Vec<Span<'static>>, Option<u16>) {
+    let indent = Span::styled(guide.to_string(), Style::new().fg(t.muted));
+    let col = guide.chars().count() as u16;
+    let arrow = if row.foldable {
+        if row.open { "▾" } else { "▸" }
+    } else if guide.is_empty() {
         " "
-    } else if row.open {
-        "▾"
     } else {
-        "▸"
+        // A leaf: its guide runs up to it.
+        "─"
     };
     let template = match &row.target {
         Some(Target::Machine(_)) => {
             // A machine: its line's state (this machine has none), its name, and what's wrong.
             let mut spans = vec![
-                Span::raw(indent.clone()),
+                indent.clone(),
                 Span::styled(arrow, Style::new().fg(t.muted)),
                 Span::raw(" "),
             ];
@@ -130,7 +172,7 @@ pub fn tree_line(row: &Row, cfg: &Sidebar, t: &Theme, ind: Indicators) -> (Vec<S
                 spans.push(Span::raw(" "));
                 spans.push(g);
             }
-            return (spans, row.foldable.then_some(indent.len() as u16));
+            return (spans, row.foldable.then_some(col));
         }
         Some(Target::Workspace(_)) => &cfg.workspace_row,
         Some(Target::Window { .. }) => &cfg.window_row,
@@ -146,11 +188,7 @@ pub fn tree_line(row: &Row, cfg: &Sidebar, t: &Theme, ind: Indicators) -> (Vec<S
         "title" => row.title.clone(),
         k => k.strip_prefix("label:").and_then(|l| row.labels.get(l).cloned()),
     };
-    let mut spans = vec![
-        Span::raw(indent.clone()),
-        Span::styled(arrow, Style::new().fg(t.muted)),
-        Span::raw(" "),
-    ];
+    let mut spans = vec![indent, Span::styled(arrow, Style::new().fg(t.muted)), Span::raw(" ")];
     // A worktree of the workspace above it.
     if row.worktree && matches!(row.target, Some(Target::Workspace(_))) {
         spans.push(Span::styled("↳ ", Style::new().fg(t.muted)));
@@ -166,7 +204,7 @@ pub fn tree_line(row: &Row, cfg: &Sidebar, t: &Theme, ind: Indicators) -> (Vec<S
         body.push(Span::styled(b.clone(), Style::new().fg(t.muted)));
     }
     spans.extend(body);
-    (spans, row.foldable.then_some(indent.len() as u16))
+    (spans, row.foldable.then_some(col))
 }
 
 pub struct View<'a> {
@@ -322,10 +360,14 @@ impl View<'_> {
         } else {
             0
         };
-        for row in rows.into_iter().skip(skip) {
+        // Where you are: the deepest current row shown (the focused pane, or the window or
+        // workspace it's folded into). The rows above it on the way there are bold.
+        let here = rows.iter().rposition(|r| r.current);
+        let guide = guides(&rows.iter().map(|r| r.depth).collect::<Vec<_>>());
+        for (k, row) in rows.into_iter().enumerate().skip(skip) {
             let style = if self.cursor.is_some() && row.target == self.cursor {
                 Style::new().bg(t.prefix).fg(t.accent_fg).add_modifier(Modifier::BOLD)
-            } else if row.current && matches!(row.target, Some(Target::Workspace(_))) {
+            } else if Some(k) == here {
                 Style::new().bg(t.accent).fg(t.accent_fg).add_modifier(Modifier::BOLD)
             } else if row.current {
                 surface.add_modifier(Modifier::BOLD)
@@ -341,7 +383,7 @@ impl View<'_> {
                     None,
                 )
             } else {
-                tree_line(row, self.config, t, self.indicators)
+                tree_line(row, &guide[k], self.config, t, self.indicators)
             };
             put(buf, tree_area, &mut y, spans, style, row.target.clone(), fold);
         }
@@ -593,8 +635,8 @@ mod tests {
         let hits = view.render(area, &mut buf);
         assert_eq!(text(&buf, 0), " Workspaces                │");
         assert_eq!(text(&buf, 1), " ▾ ● kelpie main           │");
-        assert_eq!(text(&buf, 2), "   ▾ ● 0:edit              │");
-        assert_eq!(text(&buf, 3), "       ● claude            │");
+        assert_eq!(text(&buf, 2), " └─▾ ● 0:edit              │");
+        assert_eq!(text(&buf, 3), "   └── ● claude            │");
         assert_eq!(text(&buf, 4), " ▸ api                     │");
         assert_eq!(text(&buf, 6), " Agents                    │");
         assert_eq!(text(&buf, 7), " ● claude kelpie:0:edit    │");
@@ -625,6 +667,88 @@ mod tests {
         view.render(Rect::new(0, 0, 3, 10), &mut buf);
         assert_eq!(text(&buf, 0), " ●│", "collapsed: workspace icons only");
         assert_eq!(text(&buf, 1), " ·│");
+    }
+
+    #[test]
+    fn guides_show_nesting() {
+        // ws, window (2 panes), window, ws, ws (1 window)
+        let g = guides(&[0, 1, 2, 2, 1, 0, 0, 1]);
+        assert_eq!(g, ["", "├─", "│ ├─", "│ └─", "└─", "", "", "└─"]);
+        // Under machines: an ancestor's line runs past its children.
+        let g = guides(&[0, 1, 2, 3, 1, 0, 1]);
+        assert_eq!(g, ["", "├─", "│ └─", "│   └─", "└─", "", "└─"]);
+        assert!(guides(&[]).is_empty());
+    }
+
+    #[test]
+    fn highlights_the_focused_pane_not_its_workspace() {
+        let theme = builtin("catppuccin-mocha").unwrap();
+        let win = |win: &str, current: bool| Row {
+            target: Some(Target::Window {
+                ws: "s1".into(),
+                win: win.into(),
+            }),
+            depth: 1,
+            foldable: true,
+            open: true,
+            current,
+            window: win.into(),
+            ..Default::default()
+        };
+        let pane = |pane: &str, current: bool| Row {
+            target: Some(Target::Pane {
+                ws: "s1".into(),
+                win: "w1".into(),
+                pane: pane.into(),
+            }),
+            depth: 2,
+            current,
+            agent: pane.into(),
+            ..Default::default()
+        };
+        let render = |tree: &[Row]| {
+            let cfg = Sidebar {
+                agents: AgentsPlace::Below,
+                ..Default::default()
+            };
+            let area = Rect::new(0, 0, 20, 8);
+            let mut buf = Buffer::empty(area);
+            View {
+                tree,
+                agents: &[],
+                config: &cfg,
+                theme: &theme,
+                indicators: Indicators::Dots,
+                collapsed: false,
+                boxed: false,
+                cursor: None,
+                agent_cursor: None,
+                focused: false,
+            }
+            .render(area, &mut buf);
+            // Which rows (under the header) have the accent background.
+            (1..=tree.len() as u16)
+                .filter(|&y| buf[(5, y)].bg == theme.accent)
+                .map(|y| y as usize - 1)
+                .collect::<Vec<_>>()
+        };
+        let tree = [
+            ws("s1", "kelpie", true, true),
+            win("w1", true),
+            pane("t1", false),
+            pane("t2", true),
+            win("w2", false),
+        ];
+        assert_eq!(render(&tree), [3], "the focused pane");
+        // Its window folded: the window.
+        let mut folded = tree[..2].to_vec();
+        folded[1].open = false;
+        folded.push(tree[4].clone());
+        assert_eq!(render(&folded), [1]);
+        // The workspace folded: the workspace.
+        let mut ws_only = ws("s1", "kelpie", false, true);
+        ws_only.open = false;
+        assert_eq!(render(&[ws_only, ws("s2", "api", false, false)]), [0]);
     }
 
     #[test]

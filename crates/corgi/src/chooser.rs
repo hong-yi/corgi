@@ -219,6 +219,7 @@ impl Chooser {
         } else if i >= self.top + n {
             self.top = i + 1 - n;
         }
+        let guide = crate::sidebar::guides(&rows.iter().map(|r| r.depth).collect::<Vec<_>>());
         for (k, row) in rows.iter().enumerate().skip(self.top).take(n) {
             let y = list.y + (k - self.top) as u16;
             let r = Rect::new(list.x, y, list.width, 1);
@@ -230,7 +231,7 @@ impl Chooser {
                 Style::new().fg(t.fg)
             };
             buf.set_style(r, style);
-            let (spans, _) = tree_line(row, cfg, t, ind);
+            let (spans, _) = tree_line(row, &guide[k], cfg, t, ind);
             Line::from(spans)
                 .style(style)
                 .render(Rect::new(r.x + 1, y, r.width.saturating_sub(2), 1), buf);
