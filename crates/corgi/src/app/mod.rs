@@ -799,7 +799,9 @@ impl App {
                 return;
             }
         };
-        self.doc = doc;
+        // Ids handed out before core's copy came back stay taken: a workspace still being
+        // made (its terminal starting) would otherwise share its id with the next one.
+        self.doc = doc.replacing(&self.doc);
         self.doc_version = version;
         self.loaded = true;
         self.reconcile();
