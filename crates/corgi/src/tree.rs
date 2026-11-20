@@ -98,6 +98,9 @@ pub struct Row {
     pub labels: BTreeMap<String, String>,
     /// A workspace in a git worktree of another workspace's repository: listed under it.
     pub worktree: bool,
+    /// On such a row: the repository's name, left out of `workspace` (`corgi/feat` shows as
+    /// `feat` under `corgi`) but still matched by a filter.
+    pub repo: Option<String>,
     /// On a machine row: its line (none for this machine).
     pub link: Option<crate::machines::Link>,
     /// On a machine whose line is down: what's shown is what was last seen.
@@ -109,7 +112,12 @@ impl Row {
     fn haystack(&self) -> String {
         match &self.target {
             Some(Target::Machine(_)) => self.machine.clone().unwrap_or_default(),
-            Some(Target::Workspace(_)) => format!("{} {}", self.workspace, self.branch.clone().unwrap_or_default()),
+            Some(Target::Workspace(_)) => format!(
+                "{}{} {}",
+                self.repo.as_ref().map(|r| format!("{r}/")).unwrap_or_default(),
+                self.workspace,
+                self.branch.clone().unwrap_or_default()
+            ),
             Some(Target::Window { .. }) => self.window.clone(),
             _ => format!(
                 "{} {} {}",
@@ -370,6 +378,12 @@ fn workspace_rows(
         ));
     }
     let target = Target::Workspace(s.id.clone());
+    // Under its repository's row, a worktree's automatic name (`corgi/feat`) needn't repeat the
+    // repository's; a name you gave it is shown whole.
+    let (repo, shown) = match label.split_once('/') {
+        Some((r, n)) if worktree && s.name.is_none() => (Some(r.to_string()), n.to_string()),
+        _ => (None, label),
+    };
     let ws_row = Row {
         foldable: !windows.is_empty(),
         open: fold.is_open(&target),
@@ -377,10 +391,11 @@ fn workspace_rows(
         depth: shift,
         current: ws_current,
         state: status::rollup(ws_terms),
-        workspace: label,
+        workspace: shown,
         branch: i.branches.get(folder).cloned(),
         machine: s.machine.clone(),
         worktree,
+        repo,
         ..Default::default()
     };
 
@@ -559,6 +574,73 @@ mod tests {
             .map(|r| (r.workspace.as_str(), r.worktree))
             .collect();
         assert_eq!(ws, [("corgi", false), ("feat", true), ("api", false)]);
+    }
+
+    #[test]
+    fn a_worktree_row_leaves_out_its_repository_s_name() {
+        let mut d = doc();
+        d.add_workspace(
+            "s3".into(),
+            "/trees/corgi/feat".into(),
+            None,
+            Window::new("w9".into(), "t9".into()),
+        );
+        let (t, b) = (terms(), HashMap::new());
+        let repos: HashMap<String, String> = [
+            ("/trees/corgi/feat".to_string(), "/src/corgi".to_string()),
+            ("/src/corgi".to_string(), "/src/corgi".to_string()),
+        ]
+        .into();
+        let name = |p: &str| format!("sh-{p}");
+        // What `ws_label` names a linked worktree.
+        let label = |s: &crate::model::Workspace| {
+            if s.id == "s3" {
+                "corgi/feat".to_string()
+            } else {
+                s.label()
+            }
+        };
+        let i = Inputs {
+            doc: &d,
+            terminals: &t,
+            name: &name,
+            branches: &b,
+            current: ("s1", "w1", "t2"),
+            repos: &repos,
+            label: &label,
+            folder: &|s| s.folder.clone(),
+            machines: &[],
+            host: "mac",
+            base: 0,
+        };
+        let f = Fold::default();
+        let at = |r: &[Row]| {
+            r.iter()
+                .find(|r| r.target == Some(Target::Workspace("s3".into())))
+                .map(|r| (r.workspace.clone(), r.repo.clone()))
+        };
+        assert_eq!(at(&rows(&i, &f, "")), Some(("feat".into(), Some("corgi".into()))));
+        assert!(
+            at(&rows(&i, &f, "corgi/feat")).is_some(),
+            "a filter still matches the whole name"
+        );
+
+        // A name you gave it is shown whole.
+        d.workspace_mut("s3").unwrap().name = Some("x/y".into());
+        let i = Inputs {
+            doc: &d,
+            terminals: &t,
+            name: &name,
+            branches: &b,
+            current: ("s1", "w1", "t2"),
+            repos: &repos,
+            label: &|s| s.label(),
+            folder: &|s| s.folder.clone(),
+            machines: &[],
+            host: "mac",
+            base: 0,
+        };
+        assert_eq!(at(&rows(&i, &f, "")), Some(("x/y".into(), None)));
     }
 
     #[test]

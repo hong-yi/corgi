@@ -52,8 +52,10 @@ Machines and templates come from core; the lists fill in a moment after the dial
 ### How a workspace is named
 
 A name you give it always wins. Without one, a workspace takes the name of the git checkout its
-first pane is in now (`~/src/corgi/crates` shows as `corgi`), else the folder's last part. When
-that pane changes folder, the name follows.
+first pane is in now (`~/src/corgi/crates` shows as `corgi`), else the folder's last part. In a
+linked git worktree, the repository's name comes first: a worktree at
+`~/.corgi/worktrees/corgi/feat-login` shows as `corgi/feat-login`. When that pane changes folder,
+the name follows.
 
 To go back to the automatic name, rename it to an empty name.
 
